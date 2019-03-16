@@ -1,5 +1,8 @@
 <?php
 
+/** Requiere the JWT library. */
+use \Firebase\JWT\JWT;
+
 /**
  * EDD JWT License
  *
@@ -28,18 +31,36 @@ if ( ! defined( 'WPINC' ) ) {
  * @return void
  */
 function ejl_generate_token_license() {
-	$current_user = wp_get_current_user();
-	$request      = new WP_REST_Request( 'POST', '/wp-json/jwt-auth/v1/token' );
-	$request->set_query_params(
-		array(
-			'username' => $current_user->user_login,
-			'password' => $current_user->user_pass,
-		)
+	$secret_key = defined( 'JWT_AUTH_SECRET_KEY' ) ? JWT_AUTH_SECRET_KEY : false;
+	$user       = wp_get_current_user();
+	$issued_at  = time();
+	$not_before = apply_filters( 'jwt_auth_not_before', $issued_at, $issued_at );
+	$expire     = apply_filters( 'jwt_auth_expire', $issued_at + ( DAY_IN_SECONDS * 7 ), $issued_at );
+
+	$token = array(
+		'iss'  => get_bloginfo( 'url' ),
+		'iat'  => $issued_at,
+		'nbf'  => $not_before,
+		'exp'  => $expire,
+		'data' => array(
+			'user' => array(
+				'id' => $user->data->ID,
+			),
+		),
 	);
 
-	$response = rest_do_request( $request );
+	$token = JWT::encode( apply_filters( 'jwt_auth_token_before_sign', $token, $user ), $secret_key );
+	
+	$data = array(
+		'token' => $token,
+		'user_email' => $user->data->user_email,
+		'user_nicename' => $user->data->user_nicename,
+		'user_display_name' => $user->data->display_name,
+	);
 
-	return $response;
+	$response = apply_filters( 'jwt_auth_token_before_dispatch', $data, $user );
+
+	var_dump( $response );
 }
 // add_filter( 'edd_sl_generate_license_key', 'ejl_generate_token_license' );
 
