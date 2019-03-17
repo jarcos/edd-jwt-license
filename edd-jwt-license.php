@@ -1,6 +1,6 @@
 <?php
 
-/** Requiere the JWT library. */
+/** Require the JWT library. */
 use \Firebase\JWT\JWT;
 
 /**
@@ -30,7 +30,7 @@ if ( ! defined( 'WPINC' ) ) {
  *
  * @return void
  */
-function ejl_generate_token_license() {
+function ejl_generate_token_license( $payment_id ) {
 	$secret_key = defined( 'JWT_AUTH_SECRET_KEY' ) ? JWT_AUTH_SECRET_KEY : false;
 	$user       = wp_get_current_user();
 	$issued_at  = time();
@@ -50,18 +50,28 @@ function ejl_generate_token_license() {
 	);
 
 	$token = JWT::encode( apply_filters( 'jwt_auth_token_before_sign', $token, $user ), $secret_key );
-	
+
 	$data = array(
-		'token' => $token,
-		'user_email' => $user->data->user_email,
-		'user_nicename' => $user->data->user_nicename,
+		'token'             => $token,
+		'user_email'        => $user->data->user_email,
+		'user_nicename'     => $user->data->user_nicename,
 		'user_display_name' => $user->data->display_name,
 	);
 
-	$response = apply_filters( 'jwt_auth_token_before_dispatch', $data, $user );
+	$key = apply_filters( 'jwt_auth_token_before_dispatch', $data, $user );
 
-	var_dump( $response );
+	$payment_meta = edd_get_payment_meta( $payment_id );
+	$cart_details = $payment_meta['cart_details'];
+	$acf_id       = 'user_' . $user->data->ID;
+
+	foreach ( $cart_details as $item ) {
+		if ( $item['id'] == ITEM_ID ) {
+			update_field( 'key', $key, $acf_id );
+		}
+	}
 }
+
+add_action( 'edd_complete_purchase', 'ejl_generate_token_license' );
 // add_filter( 'edd_sl_generate_license_key', 'ejl_generate_token_license' );
 
 /**
