@@ -61,7 +61,7 @@ function ejl_generate_token_license() {
 
 	$key = apply_filters( 'jwt_auth_token_before_dispatch', $data, $user );
 
-	return $key;
+	return $key['token'];
 }
 
 /**
