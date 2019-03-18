@@ -28,9 +28,10 @@ if ( ! defined( 'WPINC' ) ) {
 /**
  * Undocumented function
  *
+ * @param String $payment_id
  * @return void
  */
-function ejl_generate_token_license( $payment_id ) {
+function ejl_generate_token_license() {
 	$secret_key = defined( 'JWT_AUTH_SECRET_KEY' ) ? JWT_AUTH_SECRET_KEY : false;
 	$user       = wp_get_current_user();
 	$issued_at  = time();
@@ -60,32 +61,44 @@ function ejl_generate_token_license( $payment_id ) {
 
 	$key = apply_filters( 'jwt_auth_token_before_dispatch', $data, $user );
 
-	$payment_meta = edd_get_payment_meta( $payment_id );
-	$cart_details = $payment_meta['cart_details'];
-	$acf_id       = 'user_' . $user->data->ID;
-
-	foreach ( $cart_details as $item ) {
-		if ( $item['id'] == ITEM_ID ) {
-			update_field( 'key', $key, $acf_id );
-		}
-	}
+	return $key;
 }
-
-add_action( 'edd_complete_purchase', 'ejl_generate_token_license' );
-// add_filter( 'edd_sl_generate_license_key', 'ejl_generate_token_license' );
 
 /**
  * Undocumented function
  *
- * @return void
+ * @param Object $payment_meta Payment Metadata.
+ * @return $payment_meta
  */
-function ejl_menu_page_testing() {
-	add_menu_page(
-		'EDD JWT License',
-		'EDD JWT License',
-		'manage_options',
-		'edd-jwt-license',
-		'ejl_generate_token_license'
-	);
+function ejl_update_payment_meta( $payment_meta ) {
+	$api_key = ejl_generate_token_license();
+
+	if ( did_action( 'edd_purchase' ) ) {
+		$payment_meta['api_key'] = $api_key;
+	}
+
+	return $payment_meta;
 }
-add_action( 'admin_menu', 'ejl_menu_page_testing' );
+add_filter( 'edd_payment_meta', 'ejl_update_payment_meta' );
+
+// add_filter( 'edd_sl_generate_license_key', 'ejl_generate_token_license' );
+function ejl_edd_view_order_details( $payment ) {
+	$payment_meta = edd_get_payment_meta( $payment->ID );
+	$api_key      = isset( $payment_meta['api_key'] ) ? $payment_meta['api_key'] : 'API Key not found!';
+	?>
+	<script>
+		jQuery('.edd_license_key').after(
+			'<tr> \
+				<td> \
+					<span class="edd_sl_license_title">API Key</span> \
+				</td> \
+				<td> \
+					<textarea rows="10" cols="50" disabled style="font-size: 12px;"><?php echo esc_attr( $api_key ); ?></textarea> \
+				</td> \
+			</tr>'
+		);
+	</script>
+	<?php
+
+}
+add_action( 'edd_payment_receipt_after_table', 'ejl_edd_view_order_details' );
